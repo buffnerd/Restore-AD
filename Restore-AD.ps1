@@ -11,9 +11,20 @@
 $ouExists = Get-ADOrganizationalUnit -Filter { Name -eq "Finance" } -ErrorAction SilentlyContinue
 
 if ($ouExists) {
-    # OU exists, delete it
-    Remove-ADOrganizationalUnit -Identity "OU=Finance,DC=consultingfirm,DC=com" -Recursive -Confirm:$false
-    Write-Host "The 'Finance' OU already existed and has been deleted."
+    # Check if the OU is protected from accidental deletion
+    $ouProtected = $ouExists.ProtectedFromAccidentalDeletion
+
+    # Ensures the ProtectedFromAccidentalDeletion option is set to FALSE before running the script
+    $ouExists | Set-ADOrganizationalUnit -ProtectedFromAccidentalDeletion:$false
+    Write-Host "Accidental Deletion Protection has been temporarily deactivated."
+
+    try {
+        # Delete the OU
+        Remove-ADOrganizationalUnit -Identity $ouExists -Recursive -Confirm:$false
+        Write-Host "The 'Finance' OU already existed and has been deleted."
+    } catch {
+        Write-Host "Error occurred while deleting the 'Finance' OU: $_"
+    }
 } else {
     Write-Host "The 'Finance' OU does not exist."
 }
@@ -29,5 +40,10 @@ Import-Csv -Path "$PSScriptRoot\financePersonnel.csv" | ForEach-Object {
                -PostalCode $_.'PostalCode' -OfficePhone $_.'OfficePhone' -MobilePhone $_.'MobilePhone' -Path "OU=Finance,DC=consultingfirm,DC=com" -PassThru
 }
 
-# Generate output file for submission
-Get-ADUser -Filter * -SearchBase "ou=Finance,dc=consultingfirm,dc=com" -Properties DisplayName,PostalCode,OfficePhone,MobilePhone > ".\Requirements2\AdResults.txt"
+# Ensures the ProtectedFromAccidentalDeletion option is set to TRUE after running the script
+$ouExists | Set-ADOrganizationalUnit -ProtectedFromAccidentalDeletion:$true
+Write-Host "Accidental Deletion Protection has been reactivated."
+
+# Generate output file for the submission
+Get-ADUser -Filter * -SearchBase "ou=Finance,dc=consultingfirm,dc=com" -Properties DisplayName,PostalCode,OfficePhone,MobilePhone > $PSScriptRoot\AdResults.txt
+Write-Host "Output file has been generated for submission."
